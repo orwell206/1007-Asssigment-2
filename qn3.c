@@ -4,7 +4,6 @@
 #include <unistd.h> 
 #include <sys/wait.h> 
 
-int REDIRECT_FLAG = 0;
 char *SHELL_NAME = "tux";  	// Name of the shell. 
 int QUIT = 0;  				// Determines whether the shell terminates or not. 
 size_t BUFFER_SIZE = 1024;  // Maximum number of characters that the user can enter into the shell. 
