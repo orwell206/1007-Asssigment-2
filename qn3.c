@@ -4,7 +4,7 @@
 #include <unistd.h> 
 #include <sys/wait.h> 
 
-
+int REDIRECT_FLAG = 0;
 char *SHELL_NAME = "tux";  	// Name of the shell. 
 int QUIT = 0;  				// Determines whether the shell terminates or not. 
 size_t BUFFER_SIZE = 1024;  // Maximum number of characters that the user can enter into the shell. 
@@ -24,11 +24,37 @@ int cp_command(char **args){
 							  The array was produced by the parseLine() command.
 
 	*/	
-	char *source = args[1];
-	char *destination = args[2];
+	char character;
+	char *source_name = args[1];
+	char *destination_name = args[2];
 	char *command; 
-	sprintf(command, "cp %s %s", source, destination);
-	system(command);
+	FILE *source_file;
+	FILE *destination_file;
+
+	// Attempt to open the source file 
+	source_file = fopen(source_name, "r");
+	if(source_file == NULL)
+	{
+		printf("Error opening source file!\n");
+		return -1;
+	}
+
+	// Attempt to open the destination file
+	destination_file = fopen(destination_name, "w");
+	if(destination_file == NULL)
+	{
+		printf("Error opening destination file!\n");
+		return -1;
+	}
+
+	// Copy the contents of the source file to the destination character by character until EOF
+	while ((character = fgetc(source_file)) != EOF ){
+		fputc(character, destination_file);
+	}
+
+	// Close both the source and destination files 
+   	fclose(source_file);
+   	fclose(destination_file);
 	printf("File successfully copied!\n");
 }
 
@@ -40,7 +66,13 @@ int pwd_command(char **args){
 		Params: char **args - An array containing the command the user entered. 
 							  The array was produced by the parseLine() command.
 	*/	
-	system("pwd");
+	char cwd[1024];
+
+	// Get the current working directory
+	getcwd(cwd, sizeof(cwd));
+
+	// Display the current working directory
+	printf("%s\n", cwd);
 }
 
 
@@ -51,12 +83,44 @@ int io_redirect_command(char **args){
 		Params: char **args - An array containing the command the user entered. 
 							  The array was produced by the parseLine() command.
 	*/		
+	char character;
 	char *source = args[0];
 	char *destination = args[2];
-	char *command; 
-	sprintf(command, "%s > %s", source, destination);
-	system("pwd > foo");
-	printf("IO redirection successful!\n");
+	char dataToBeCopied[1024];
+	int fd;
+	int pid; 
+	FILE *destination_file;
+
+	// Attempt to open the destination file.
+	destination_file = fopen(destination, "w");
+	if(destination_file == NULL)
+	{
+		printf("Error opening destination file!\n");
+		return -1;
+	}
+
+	// Gets the file descriptor of the desintation file.
+	fd = fileno(destination_file);
+
+	// Copies the data to be copied to another variable.
+	strcpy(dataToBeCopied, source);
+
+	// Check if the user entered the "pwd" command.
+	if (strcmp(source, "pwd") == 0){
+		char cwd[1024];
+		getcwd(cwd, sizeof(cwd));
+		strcpy(dataToBeCopied, cwd);
+	}
+
+	// Fork a child process to redirect the output to the destination file.
+	pid = fork();
+	if (pid == 0) {
+		dup2(fd, 1);
+		puts(dataToBeCopied);
+		exit(1);
+		fclose(destination_file);
+	}
+	printf("I/O redirection copied!\n"); 
 }
 
 
