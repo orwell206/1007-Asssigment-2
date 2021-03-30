@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/mman.h> 
 #include <string.h>
 #include <semaphore.h>
 #include <pthread.h>
@@ -8,10 +10,7 @@
 #define NUM_OF_PROCESSES 5
 #define NUM_OF_RESOURCES 3
 #define WRITE_COUNT 5
-
-// Binary Semaphores
-sem_t jar1lock, jar2lock, jar3lock;
-
+#define SHSIZE 1024
 
 void createFiles(){
     /* ********************************************************************** */
@@ -68,71 +67,19 @@ void openFileAndModify(int jar_count){
     }
 }
 
-void* race_c(void* thread_id){
+void* race_c2(){
     /* ************************************************************************* */
     /* Worker thread function that calls 'openFileAndModify()' for all resources */
     /* ************************************************************************* */
 
-    int *tid = thread_id;
-
-    // For each file, acquire the corresponding lock
-    // for (int jar_count = 0; jar_count < NUM_OF_RESOURCES; jar_count++){
-    
-    // Acquire lock for this jar 1
-    sem_wait(&jar1lock);
-    printf("[+] Bear %d acquired lock for jar 1\n", *tid);
-    
-    /********************/
-    /* Critical Section */
-    /********************/
-    openFileAndModify(1);
-
-    // Release the lock for this jar (1 since we have written to it WRITE_COUNT times
-    printf("[-] Bear %d released lock for jar 1\n", *tid);
-    sem_post(&jar1lock);
-
-    // Acquire lock for jar 2
-    sem_wait(&jar2lock);
-    printf("[+] Bear %d acquired lock for jar 2\n", *tid);
-    
-    /********************/
-    /* Critical Section */
-    /********************/
-    openFileAndModify(2);
-
-    // Release the lock for jar 2 since we have written to it WRITE_COUNT times
-    printf("[-] Bear %d released lock for jar 2\n", *tid);
-    sem_post(&jar2lock);
-    
-    // Acquire lock for this jar 3
-    sem_wait(&jar3lock);
-    printf("[+] Bear %d acquired lock for jar 3\n", *tid);
-    
-    /********************/
-    /* Critical Section */
-    /********************/
-    openFileAndModify(3);
-
-    // Release the lock for this jar 3 since we have written to it WRITE_COUNT times
-    printf("[-] Bear %d released lock for jar 3\n", *tid);
-    sem_post(&jar3lock);
-
-    // }
-}
-
-void* race_c2(void* locks){
-    /* ************************************************************************* */
-    /* Worker thread function that calls 'openFileAndModify()' for all resources */
-    /* ************************************************************************* */
-
-    sem_t *jarlocks = locks;
-    pid_t x = gettid();
+    // sem_t locks1;
+    pid_t x = syscall(SYS_gettid);
 
     // For each file, acquire the corresponding lock
     for (int i = 0; i < NUM_OF_RESOURCES; i++){
         
         // Acquire lock for this jar 1
-        sem_wait(&jarlocks[i]);
+        // sem_wait(&locks1);
         printf("[+] Bear %d acquired lock for jar %d\n", x, i+1);
         
         /********************/
@@ -142,7 +89,7 @@ void* race_c2(void* locks){
 
         // Release the lock for this jar (1 since we have written to it WRITE_COUNT times
         printf("[-] Bear %d released lock for jar %d\n", x, i+1);
-        sem_post(&jarlocks[i]);
+        // sem_post(&locks1);
     }
 }
 
@@ -150,60 +97,72 @@ int main()
 {
     // Ensure NUM_OF_RESOURCES * jar files are created
     createFiles();
-
-    // Init all 3 locks for each file
-    sem_init(&jar1lock, 0, 1);
-    sem_init(&jar2lock, 0, 1);
-    sem_init(&jar3lock, 0, 1);
-
-    // Spawn worker threads
-    // int *thread_ids = malloc(sizeof(int)*NUM_OF_PROCESSES);
-
-    // for (int i = 0; i < NUM_OF_PROCESSES; i++){
-    //     thread_ids[i] = i+1;
-    // }
-
-    sem_t locks[NUM_OF_RESOURCES] = {jar1lock, jar2lock, jar3lock};
-
-    // Declare the 5 processes (worker threads)
-    pthread_t bear1, bear2, bear3, bear4, bear5;
+    // sem_t jarlock;
+    sem_t *jarlock = mmap(NULL,sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     
+    // Initialise lock.
+    sem_init(jarlock, 0, 1);
 
-    // for(int i=0; i<3; i++){
-    // pthread_create(&bear1, NULL, race_c2, &thread_ids[0]);
-    // pthread_create(&bear2, NULL, race_c2, &thread_ids[1]);
-    // pthread_create(&bear3, NULL, race_c2, &thread_ids[2]);
-    // pthread_create(&bear4, NULL, race_c2, &thread_ids[3]);
-    // pthread_create(&bear5, NULL, race_c2, &thread_ids[4]);
-    pthread_create(&bear1, NULL, race_c2, &locks);
-    pthread_create(&bear2, NULL, race_c2, &locks);
-    pthread_create(&bear3, NULL, race_c2, &locks);
-    pthread_create(&bear4, NULL, race_c2, &locks);
-    pthread_create(&bear5, NULL, race_c2, &locks);
-    pthread_join(bear1, NULL);
-    pthread_join(bear2, NULL);
-    pthread_join(bear3, NULL);
-    pthread_join(bear4, NULL);
-    pthread_join(bear5, NULL);
-    // }
-    sem_destroy(&jar1lock);
-    sem_destroy(&jar2lock);
-    sem_destroy(&jar3lock);
-    // free(thread_ids);
+    // counter variable 
+    int loopctr = 0;
+    int resource = NUM_OF_RESOURCES;
 
-    // for(int i=0; i<3; i++){
-    //     pthread_create(&bear1, NULL, sol_rc, NULL);
-    //     pthread_create(&bear2, NULL, sol_rc, NULL);
-    //     pthread_create(&bear3, NULL, sol_rc, NULL);
-    //     pthread_create(&bear4, NULL, sol_rc, NULL);
-    //     pthread_create(&bear5, NULL, sol_rc, NULL);
-    //     pthread_join(bear1, NULL);
-    //     pthread_join(bear2, NULL);
-    //     pthread_join(bear3, NULL);
-    //     pthread_join(bear4, NULL);
-    //     pthread_join(bear5, NULL);
-    // }
+    // Create parent and child process
+    pid_t bear1, bear2, bear3;
+    bear1 = fork();
+    bear2 = fork();
+    bear3 = fork();
+    
+    if(bear1 > 0 && bear2 > 0 && bear3 > 0){
+        while(resource > 0){
+            // sem_wait(jarlock);
+            race_c2();
+            loopctr++;
+            resource -= 1; 
+            // sem_post(jarlock);
+        }
+        printf("Bear 1 accessed the jar %d times.\n", loopctr);
+    }
+    else if(bear1 > 0 && bear2 > 0 && bear3 == 0){
+        while(resource > 0){
+            // sem_wait(jarlock);
+            race_c2();
+            loopctr++;
+            resource -= 1;
+            // sem_post(jarlock);
+        }
+        printf("Bear 2 accessed the jar %d times.\n", loopctr);
+    }
+    else if(bear1 > 0 && bear2 == 0 && bear3 > 0){
+        while(resource > 0){
+            // sem_wait(jarlock);
+            race_c2();
+            loopctr++;
+            resource -= 1;
+            // sem_post(jarlock);
+        }
+        printf("Bear 3 accessed the jar %d times.\n", loopctr);
+    }
+    else if(bear1 > 0 && bear2 == 0 && bear3 == 0){
+        while(resource > 0){
+            // sem_wait(jarlock);
+            race_c2();
+            loopctr++;
+            resource -= 1;
+            // sem_post(jarlock);
+        }
+        printf("Bear 4 accessed the jar %d times.\n", loopctr);
+    }
+    else if(bear1 == 0 && bear2 > 0 && bear3 > 0){
+        while(resource > 0){
+            // sem_wait(jarlock);
+            race_c2();
+            loopctr++;
+            resource -= 1;
+            // sem_post(jarlock);
+        }
+        printf("Bear 5 accessed the jar %d times.\n", loopctr);
+    }
     
     return 0;
 }
-
