@@ -15,8 +15,9 @@ void createFiles(){
     /* ********************************************************************** */
     /* Function that will create files if does not exist, else truncate to 0 */
     /* ********************************************************************** */
-    FILE *temp;
-    int initial_cookie_count = 0;
+    FILE *temp;                      // temp file stream variable 
+    int initial_cookie_count = 0;    //  no. of cookie
+    /* ********************************************************************** */
 
     // Ensure files are recreated from scratch
     for (int i = 0; i < NUM_OF_RESOURCES; i++){
@@ -36,13 +37,10 @@ void openFileAndModify(int jar_count){
     /* ********************************************************* */
     /* Function that increment file contents 'WRITE_COUNT' times */
     /* ********************************************************* */
-
-    // Declare temp file stream variable
-    FILE *jar;
-    
-    // Init var to store number of cookies in each file
-    int cookie_count = 0;
-    
+    FILE *jar;              // temp file stream variable
+    int cookie_count = 0;   // store no. of cookies in each file
+    /* ********************************************************* */
+ 
     // Get name of file to open on this iteration
     char file_to_open[10];
     snprintf(file_to_open, 10, "jar%d.txt", jar_count);
@@ -68,7 +66,9 @@ void* race_c2(){
     /* ************************************************************************* */
     /* Worker thread function that calls 'openFileAndModify()' for all resources */
     /* ************************************************************************* */
-    pid_t x = syscall(SYS_gettid);
+    pid_t x = syscall(SYS_gettid);    // Process id (for linux)
+    /* ************************************************************************* */
+
     // Process will access each file. 
     for (int i = 0; i < NUM_OF_RESOURCES; i++){
         // Simulate acquire lock for this jar 1
@@ -85,6 +85,8 @@ void* race_c2(){
 int main()
 {
     /* *********************************************************** */
+    /* ******************* Main Program ************************** */
+    /* *********************************************************** */
     int jarcount;           // store jar count    
     int bear_id;            // store bear id        
     sem_t *sem;             // store shared semaphore
@@ -94,10 +96,10 @@ int main()
     // Create shared semaphore lock for process. 
     sem = sem_open ("jarlock", O_CREAT | O_EXCL, 0644, 1); 
     printf("\nJarlock Semaphore Initialized.\n\n");
-
+    
     // Ensure NUM_OF_RESOURCES * jar files are created
     createFiles();
-    
+
     // Create NUM_OF_PROCESSES processes
     for(bear_id = 0; bear_id < NUM_OF_PROCESSES; bear_id++){
         bear = fork();
@@ -127,6 +129,9 @@ int main()
     // Child Bear Process
     else{
         sem_wait(sem);
+        /* ********************** */
+        /* ** Critical Section ** */
+        /* ********************** */
         printf ("\nBear[%d] is in critical section.", bear_id+1);
         race_c2();
         sem_post(sem);  
