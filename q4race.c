@@ -1,16 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <sys/syscall.h>
-#include <sys/mman.h> 
-#include <string.h>
+#include <errno.h> 
 #include <semaphore.h>
-#include <pthread.h>
+#include <fcntl.h>     
 
 #define NUM_OF_PROCESSES 5
 #define NUM_OF_RESOURCES 3
 #define WRITE_COUNT 5
-#define SHSIZE 1024
 
 void createFiles(){
     /* ********************************************************************** */
@@ -56,7 +55,6 @@ void openFileAndModify(int jar_count){
         fscanf(jar, "%d", &cookie_count);
         // After reading value, close the file stream
         fclose(jar);
-
         // Then, open the file for writing
         jar = fopen(file_to_open, "w+");
         // Write incremented value of current cookie count into file
@@ -66,103 +64,72 @@ void openFileAndModify(int jar_count){
         fclose(jar);
     }
 }
-
 void* race_c2(){
     /* ************************************************************************* */
     /* Worker thread function that calls 'openFileAndModify()' for all resources */
     /* ************************************************************************* */
-
-    // sem_t locks1;
     pid_t x = syscall(SYS_gettid);
-
-    // For each file, acquire the corresponding lock
+    // Process will access each file. 
     for (int i = 0; i < NUM_OF_RESOURCES; i++){
-        
-        // Acquire lock for this jar 1
-        // sem_wait(&locks1);
-        printf("[+] Bear %d acquired lock for jar %d\n", x, i+1);
-        
+        // Simulate acquire lock for this jar 1
+        printf("\n[+] Bear PID: [%d] acquired lock for jar %d", x, i+1);
         /********************/
         /* Critical Section */
         /********************/
         openFileAndModify(i+1);
-
-        // Release the lock for this jar (1 since we have written to it WRITE_COUNT times
-        printf("[-] Bear %d released lock for jar %d\n", x, i+1);
-        // sem_post(&locks1);
+        // Simulate elease the lock for this jar (1 since we have written to it WRITE_COUNT times
+        printf("\n[-] Bear PID: [%d] released lock for jar %d", x, i+1);
     }
 }
 
 int main()
 {
+    /* *********************************************************** */
+    int jarcount;           // store jar count    
+    int bear_id;            // store bear id        
+    sem_t *sem;             // store shared semaphore
+    pid_t bear;             // Process to be forked
+    /* *********************************************************** */
+
+    // Create shared semaphore lock for process. 
+    sem = sem_open ("jarlock", O_CREAT | O_EXCL, 0644, 1); 
+    printf("\nJarlock Semaphore Initialized.\n\n");
+
     // Ensure NUM_OF_RESOURCES * jar files are created
     createFiles();
-    // sem_t jarlock;
-    sem_t *jarlock = mmap(NULL,sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     
-    // Initialise lock.
-    sem_init(jarlock, 0, 1);
-
-    // counter variable 
-    int loopctr = 0;
-    int resource = NUM_OF_RESOURCES;
-
-    // Create parent and child process
-    pid_t bear1, bear2, bear3;
-    bear1 = fork();
-    bear2 = fork();
-    bear3 = fork();
-    
-    if(bear1 > 0 && bear2 > 0 && bear3 > 0){
-        while(resource > 0){
-            // sem_wait(jarlock);
-            race_c2();
-            loopctr++;
-            resource -= 1; 
-            // sem_post(jarlock);
+    // Create NUM_OF_PROCESSES processes
+    for(bear_id = 0; bear_id < NUM_OF_PROCESSES; bear_id++){
+        bear = fork();
+        // Check if error occured in fork process
+        if(bear < 0){
+            sem_unlink("jarlock");     
+            sem_close(sem);           
+            printf("\nFork error.");
         }
-        printf("Bear 1 accessed the jar %d times.\n", loopctr);
-    }
-    else if(bear1 > 0 && bear2 > 0 && bear3 == 0){
-        while(resource > 0){
-            // sem_wait(jarlock);
-            race_c2();
-            loopctr++;
-            resource -= 1;
-            // sem_post(jarlock);
+        else if(bear == 0){
+            // If process is child, do not fork.
+            break;
         }
-        printf("Bear 2 accessed the jar %d times.\n", loopctr);
     }
-    else if(bear1 > 0 && bear2 == 0 && bear3 > 0){
-        while(resource > 0){
-            // sem_wait(jarlock);
-            race_c2();
-            loopctr++;
-            resource -= 1;
-            // sem_post(jarlock);
+    // Parent Bear Process 
+    if(bear != 0){
+        //wait for children to exit 
+        while(bear = waitpid(-1, NULL, 0)){
+            if(errno == ECHILD){
+                break;
+            }
         }
-        printf("Bear 3 accessed the jar %d times.\n", loopctr);
+        printf("\nParent Bear: All child Bear have exited.");
+        sem_unlink("jarlock");
+        sem_close(sem);
     }
-    else if(bear1 > 0 && bear2 == 0 && bear3 == 0){
-        while(resource > 0){
-            // sem_wait(jarlock);
-            race_c2();
-            loopctr++;
-            resource -= 1;
-            // sem_post(jarlock);
-        }
-        printf("Bear 4 accessed the jar %d times.\n", loopctr);
+    // Child Bear Process
+    else{
+        sem_wait(sem);
+        printf ("\nBear[%d] is in critical section.", bear_id+1);
+        race_c2();
+        sem_post(sem);  
     }
-    else if(bear1 == 0 && bear2 > 0 && bear3 > 0){
-        while(resource > 0){
-            // sem_wait(jarlock);
-            race_c2();
-            loopctr++;
-            resource -= 1;
-            // sem_post(jarlock);
-        }
-        printf("Bear 5 accessed the jar %d times.\n", loopctr);
-    }
-    
     return 0;
 }
