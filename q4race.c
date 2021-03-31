@@ -77,7 +77,7 @@ void* race_c2(){
         /* Critical Section */
         /********************/
         openFileAndModify(i+1);
-        // Simulate elease the lock for this jar (1 since we have written to it WRITE_COUNT times
+        // Simulate release the lock for this jar (1 since we have written to it WRITE_COUNT times
         printf("\n[-] Bear PID: [%d] released lock for jar %d", x, i+1);
     }
 }
