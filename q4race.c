@@ -1,11 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <errno.h> 
-#include <semaphore.h>
-#include <fcntl.h>     
+#include <stdio.h>                  /* FILE*, temp            */ 
+#include <unistd.h>                 /* POSIX OS API           */
+#include <sys/wait.h>               /* wait for process       */
+#include <sys/syscall.h>            /* for syscall(sysgettid) */
+#include <errno.h>                  /* no. of last error      */ 
+#include <semaphore.h>              /* semaphore for code     */
+#include <fcntl.h>                  /* O_CREAT, O_EXEC        */
 
 #define NUM_OF_PROCESSES 5
 #define NUM_OF_RESOURCES 3
@@ -95,7 +94,7 @@ int main()
 
     // Create shared semaphore lock for process. 
     sem = sem_open ("jarlock", O_CREAT | O_EXCL, 0644, 1); 
-    printf("\nJarlock Semaphore Initialized.\n\n");
+    printf("\nBear Race Condition Simulation.\n");
     
     // Ensure NUM_OF_RESOURCES * jar files are created
     createFiles();
@@ -116,24 +115,27 @@ int main()
     }
     // Parent Bear Process 
     if(bear != 0){
-        //wait for children to exit 
+        // wait for children to exit 
         while(bear = waitpid(-1, NULL, 0)){
             if(errno == ECHILD){
                 break;
             }
         }
-        printf("\nParent Bear: All child Bear have exited.");
+        printf("\n\nParent Bear: All child Bear have exited.\n");
         sem_unlink("jarlock");
         sem_close(sem);
     }
     // Child Bear Process
     else{
+        // Acquire lock for current process
         sem_wait(sem);
-        /* ********************** */
-        /* ** Critical Section ** */
-        /* ********************** */
-        printf ("\nBear[%d] is in critical section.", bear_id+1);
+        /********************/
+        /* Critical Section */
+        /********************/
+        sleep(1);
+        printf ("\n\nBear[%d] is in critical section.", bear_id+1);
         race_c2();
+        // Release lock for current process
         sem_post(sem);  
     }
     return 0;
