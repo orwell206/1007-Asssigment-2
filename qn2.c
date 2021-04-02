@@ -55,7 +55,7 @@ void get_metadata(char *file_name, struct stat *file_stats){
 	printf("%s\t", getgrgid(file_stats->st_gid)->gr_name); 					// Group name
 	printf("%s\t", file_perms);  											// File permissions
 	printf("%ld\t", file_stats->st_size); 									// File size
-	printf("%ld\t", file_stats->st_ino);  									// Inode number 
+	printf("%*ld\t", 9, file_stats->st_ino);  									// Inode number 
 	printf("%ld\t", file_stats->st_dev);  									// Device number of the device in which the file is stored
 	printf("%ld\t", file_stats->st_nlink); 									// Symbolic link
 	strftime(time, 50, "%b %d %H:%M", localtime(&file_stats->st_atime));	// Last access-time
@@ -127,6 +127,7 @@ int main(int argc, char *argv[])
 				char *argv[] - The list of arguments provided to the main function. 
 	*/
 	// List all meta data of the files in the current directory if no arguments are provided. 
+	printf("User\tGroup\tPermissions\tSize\t  Inode\t        Device\tLink\tLast-Access\tLast-Modified\tStatus-Changes\tName\n");
 	if(argc == 1) {
 		list_dir( "." );
 	}
