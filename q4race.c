@@ -1,4 +1,5 @@
 #include <stdio.h>                  /* FILE*, temp            */ 
+#include <stdlib.h>                 /* for rand() test        */
 #include <unistd.h>                 /* POSIX OS API           */
 #include <sys/wait.h>               /* wait for process       */
 #include <sys/syscall.h>            /* for syscall(sysgettid) */
@@ -20,9 +21,10 @@ void createFiles(){
 
     // Ensure files are recreated from scratch
     for (int i = 0; i < NUM_OF_RESOURCES; i++){
+        // strncat(file_path, "%d/", file_num);
         char filename[10];
         // Get name of file to create
-        snprintf(filename, 10, "jar%d.txt", i+1);
+        snprintf(filename, 10,"jar%d.txt", i+1);
         // Open file for writing (if exist, overwrite, if does not exist, create and write)
         temp = fopen(filename, "w+");
         // Write the cookie count (default initial value == 0) into the file
@@ -39,11 +41,10 @@ void openFileAndModify(int jar_count){
     FILE *jar;              // temp file stream variable
     int cookie_count = 0;   // store no. of cookies in each file
     /* ********************************************************* */
- 
+
     // Get name of file to open on this iteration
     char file_to_open[10];
     snprintf(file_to_open, 10, "jar%d.txt", jar_count);
-
     // Then, write n times, where n = WRITE_COUNT constant
     for (int i = 0; i < WRITE_COUNT; i++){
         // First open the file for reading
@@ -61,7 +62,7 @@ void openFileAndModify(int jar_count){
         fclose(jar);
     }
 }
-void* race_c2(){
+void race_c2(){
     /* ************************************************************************* */
     /* Worker thread function that calls 'openFileAndModify()' for all resources */
     /* ************************************************************************* */
@@ -113,6 +114,7 @@ int main()
             break;
         }
     }
+
     // Parent Bear Process 
     if(bear != 0){
         // wait for children to exit 
@@ -129,10 +131,16 @@ int main()
     else{
         // Acquire lock for current process
         sem_wait(sem);
+        /**********************************************************/
+        /* ******************* TEST Sleep *********************** */
+        /**********************************************************/
+        //usleep(((rand() % 5) + 1) * 10000); 
+        /**********************************************************/
+
         /********************/
         /* Critical Section */
         /********************/
-        sleep(1);
+        sleep(2);
         printf ("\n\nBear[%d] is in critical section.", bear_id+1);
         race_c2();
         // Release lock for current process
