@@ -11,7 +11,7 @@
 #define RESOURCES 5
 
 //SEMAPHORE
-char SEMAPHORE_NAME[RESOURCES][20];
+sem_t *SEM_ARRAY[RESOURCES];
 char FILENAME[RESOURCES][20];
 
 void writing_process(int num)
@@ -25,8 +25,6 @@ void writing_process(int num)
     int process_num = num;            /* reference process number */
     int filenum, filenum2;            /* to reference the file number to be open */
     char filename[20], filename2[20]; /* to reference the named file to be open with *fp */
-    char semName[20];                 /* named semaphore */
-    int sem_value, sem_value2;        /*      use for referencing semaphore num          */
     sem_t *sem1, *sem2;               /*      use for referencing named semaphore by combining   test_ + sem_value      */
     FILE *fp;                         /* file pointer */
     printf("process %d create \n", process_num);
@@ -70,8 +68,8 @@ void writing_process(int num)
             exit;
         }
 
-        sem1 = sem_open(SEMAPHORE_NAME[filenum], O_EXCL);
-        sem2 = sem_open(SEMAPHORE_NAME[filenum2], O_EXCL);
+        sem1 = SEM_ARRAY[filenum];
+        sem2 = SEM_ARRAY[filenum2];
 
         while (1)
         /* the no hold and wait deadlock prevention method */
@@ -95,11 +93,13 @@ void writing_process(int num)
         }
 
         printf("Process %d accessing %s \n", process_num, FILENAME[filenum]);
+        //sem_wait(sem1);
         fp = fopen(FILENAME[filenum], "a");
         fprintf(fp, "Process %d was here during loop %d\n", process_num, i);
         fclose(fp);
 
         printf("Process %d accessing %s \n", process_num, FILENAME[filenum2]);
+        //sem_wait(sem2);
         fp = fopen(FILENAME[filenum2], "a");
         fprintf(fp, "Process %d was here during loop %d\n", process_num, i);
         fclose(fp);
@@ -116,6 +116,7 @@ void writing_process(int num)
 int main()
 {
     pid_t pid[PROCESSES], cpid;
+    char semName[20];
     int i, process[PROCESSES], stats = 0;
     FILE *fp;
     for (i = 0; i < RESOURCES; i++)
@@ -126,8 +127,8 @@ int main()
         fopen(filename, "w"); -> to create/erase the file content.
         */
         process[i] = i + 1;
-        snprintf(SEMAPHORE_NAME[i], 20, "test_%d", i);
-        sem_open(SEMAPHORE_NAME[i], O_CREAT, 0777, 1);
+        snprintf(semName, 20, "test_%d", i);
+        SEM_ARRAY[i] = sem_open(semName, O_CREAT, 0777, 1);
         snprintf(FILENAME[i], 20, "test_%d.txt", i);
         fp = fopen(FILENAME[i], "w");
         fclose(fp);
@@ -157,5 +158,15 @@ int main()
         printf("Child %d terminated with Process: %d\n",
                cpid, WEXITSTATUS(stats));
     }
+
+    for (i = 0; i < 5; i++)
+    {
+
+        //sem_unlink(SEM_ARRAY[i]);
+        sem_close(SEM_ARRAY[i]);
+    }
+
+    printf("closed all semaphore \n");
+
     return 0;
 }
