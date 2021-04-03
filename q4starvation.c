@@ -126,9 +126,6 @@ int main() {
         sem_post(fcfs); // Release Semaphore
     }
 
-    int gpriority; // Local "global priority" variable used to keep track of the priority semaphore
-    int lcompletion = 000; // Task completion condition marker
-
     if(id == 0) { // If parent condition
         sem_wait(start); // Makes the original process hold
         sleep(2); // Sleeps for a arbitrary amount to wait for other child process
@@ -141,6 +138,9 @@ int main() {
     if(sem_wait(start) == 0) { // If child condition to wait for parent
         sem_post(start); // Release semaphore to start work to allow a fair start
     }
+    
+    int gpriority; // Local "global priority" variable used to keep track of the priority semaphore
+    int lcompletion = 000; // Task completion condition marker
 
     struct timeval begin, end; // Timer struct
     gettimeofday(&begin, 0); // Get current timeofday to start timer
