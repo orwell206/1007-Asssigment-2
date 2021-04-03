@@ -51,7 +51,7 @@ void append_text(const char *filename, int lprocess) {
     fprintf(fp, " | %s", ctime(&t)); // current time date year
     fprintf(fp, "%s", "\n");
     fclose(fp); 
-    sleep(2); // simulated work time
+    sleep(1); // simulated work time
 }
 
 void doing_something(const char *filename, int lprocess){
@@ -131,7 +131,7 @@ int main() {
 
     if(id == 0) { // If parent condition
         sem_wait(start); // Makes the original process hold
-        sleep(3); // Sleeps for a arbitrary amount to wait for other child process
+        sleep(2); // Sleeps for a arbitrary amount to wait for other child process
         linebreak();
         sem_post(start); // Release semaphore to start working
         printf("Process Released to Start Working.\n");
