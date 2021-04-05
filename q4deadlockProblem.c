@@ -14,6 +14,7 @@
 sem_t *SEM_ARRAY[RESOURCES];
 char FILENAME[RESOURCES][20];
 
+
 void writing_process(int num)
 {
     /* 
@@ -71,7 +72,6 @@ void writing_process(int num)
         sem1 = SEM_ARRAY[filenum];
         sem2 = SEM_ARRAY[filenum2];
 
-
         printf("Process %d accessing %s \n", process_num, FILENAME[filenum]);
         sem_wait(sem1);
         fp = fopen(FILENAME[filenum], "a");
@@ -79,6 +79,11 @@ void writing_process(int num)
         fclose(fp);
 
         printf("Process %d accessing %s \n", process_num, FILENAME[filenum2]);
+        if (process_num ==0)
+        {
+            sleep(1);
+        }
+        
         sem_wait(sem2);
         fp = fopen(FILENAME[filenum2], "a");
         fprintf(fp, "Process %d was here during loop %d\n", process_num, i);
